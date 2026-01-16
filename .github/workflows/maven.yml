@@ -1,0 +1,49 @@
+name: Java CI with Maven
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Service Container: Spins up a real Postgres DB accessible on localhost:5432
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: odrl
+          POSTGRES_PASSWORD: odrl
+          POSTGRES_DB: odrl_db
+        ports:
+          - 5432:5432
+        # Health check to ensure DB is ready before tests run
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache:maven: true
+
+    - name: Build and Test with Maven
+      run: mvn -B verify --file pom.xml
+      env:
+        # Overrides application.properties to ensure we connect to the CI database
+        QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://localhost:5432/odrl_db
+        QUARKUS_DATASOURCE_USERNAME: odrl
+        QUARKUS_DATASOURCE_PASSWORD: odrl
+        # Disable OIDC during CI tests
+        QUARKUS_OIDC_ENABLED: false
+        QUARKUS_OIDC_TENANT_ENABLED: false
