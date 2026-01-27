@@ -35,7 +35,7 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache:maven: true
+        cache: 'maven'
 
     - name: Build and Test with Maven
       run: mvn -B verify --file pom.xml
