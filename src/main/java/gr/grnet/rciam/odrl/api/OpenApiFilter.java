@@ -1,16 +1,17 @@
 package gr.grnet.rciam.odrl.api;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import java.util.Optional;
 import java.util.LinkedHashMap;
+import java.util.Optional;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.openapi.OASFactory;
 import org.eclipse.microprofile.openapi.OASFilter;
 import org.eclipse.microprofile.openapi.models.OpenAPI;
 import org.eclipse.microprofile.openapi.models.Components;
 import org.eclipse.microprofile.openapi.models.security.OAuthFlow;
 import org.eclipse.microprofile.openapi.models.security.OAuthFlows;
-import org.eclipse.microprofile.openapi.models.security.OAuthScope;
+import org.eclipse.microprofile.openapi.models.security.Scopes;
 import org.eclipse.microprofile.openapi.models.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.models.security.SecurityScheme;
 import org.eclipse.microprofile.openapi.models.security.SecurityScheme.Type;
@@ -25,7 +26,8 @@ public class OpenApiFilter implements OASFilter {
     public void filterOpenAPI(OpenAPI openAPI) {
         Components components = openAPI.getComponents();
         if (components == null) {
-            components = new Components();
+            // MUST use OASFactory for Interfaces
+            components = OASFactory.createObject(Components.class);
             openAPI.setComponents(components);
         }
 
@@ -34,43 +36,44 @@ public class OpenApiFilter implements OASFilter {
         }
 
         // 1. Add "Paste Token" Scheme (BearerAuth)
-        components.getSecuritySchemes().put("BearerAuth",
-            new SecurityScheme()
+        SecurityScheme bearerScheme = OASFactory.createObject(SecurityScheme.class)
                 .type(Type.HTTP)
                 .scheme("bearer")
                 .bearerFormat("JWT")
-                .description("Paste your Access Token here directly.")
-        );
+                .description("Paste your Access Token here directly.");
+
+        components.getSecuritySchemes().put("BearerAuth", bearerScheme);
 
         // 2. Configure OAuth2 Scheme (OIDC)
         SecurityScheme oauth2 = components.getSecuritySchemes().get("oauth2");
         if (oauth2 == null) {
-            oauth2 = new SecurityScheme().type(Type.OAUTH2);
+            oauth2 = OASFactory.createObject(SecurityScheme.class).type(Type.OAUTH2);
             components.getSecuritySchemes().put("oauth2", oauth2);
         } else if (oauth2.getType() != null && oauth2.getType() != Type.OAUTH2) {
-            // Defensive: Abort if 'oauth2' exists but is the wrong type
             return;
         }
 
         if (tokenUrl.isPresent() && !tokenUrl.get().isBlank()) {
-            OAuthFlow clientCreds = new OAuthFlow();
+            OAuthFlow clientCreds = OASFactory.createObject(OAuthFlow.class);
             clientCreds.setTokenUrl(tokenUrl.get());
 
-            OAuthScope scopes = new OAuthScope();
+            // Create Scopes using OASFactory
+            Scopes scopes = OASFactory.createObject(Scopes.class);
             scopes.addScope("policies:read", "Read policies and validate");
             scopes.addScope("policies:write", "Create, update and delete policies");
 
-            OAuthFlows flows = new OAuthFlows();
+            clientCreds.setScopes(scopes);
+
+            OAuthFlows flows = OASFactory.createObject(OAuthFlows.class);
             flows.setClientCredentials(clientCreds);
 
             oauth2.setFlows(flows);
         }
 
         // 3. Make "Paste Token" Available Globally
-        // This ensures the BearerAuth box appears on endpoints defined in your YAML,
-        // giving you a choice between OIDC (Login) or Bearer (Paste).
-        openAPI.addSecurityRequirement(
-            new SecurityRequirement().addScheme("BearerAuth")
-        );
+        SecurityRequirement req = OASFactory.createObject(SecurityRequirement.class)
+                .addScheme("BearerAuth");
+
+        openAPI.addSecurityRequirement(req);
     }
 }
