@@ -57,8 +57,6 @@ public class PolicyResource {
         return Response.created(location)
                 .entity(created)
                 .build();
-                .entity(created)
-                .build();
     }
 
     @GET
