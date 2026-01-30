@@ -7,11 +7,10 @@ import java.util.Optional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.OASFactory;
 import org.eclipse.microprofile.openapi.OASFilter;
-import org.eclipse.microprofile.openapi.models.OpenAPI;
 import org.eclipse.microprofile.openapi.models.Components;
+import org.eclipse.microprofile.openapi.models.OpenAPI;
 import org.eclipse.microprofile.openapi.models.security.OAuthFlow;
 import org.eclipse.microprofile.openapi.models.security.OAuthFlows;
-import org.eclipse.microprofile.openapi.models.security.Scopes;
 import org.eclipse.microprofile.openapi.models.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.models.security.SecurityScheme;
 import org.eclipse.microprofile.openapi.models.security.SecurityScheme.Type;
@@ -34,45 +33,43 @@ public class OpenApiFilter implements OASFilter {
             components.setSecuritySchemes(new LinkedHashMap<>());
         }
 
-        // 1. Add "Paste Token" Scheme (BearerAuth)
-        SecurityScheme bearerScheme = OASFactory.createObject(SecurityScheme.class)
+        // 1. Define the "Paste Token" Scheme
+        components.getSecuritySchemes().putIfAbsent(
+            "BearerAuth",
+            OASFactory.createObject(SecurityScheme.class)
                 .type(Type.HTTP)
                 .scheme("bearer")
                 .bearerFormat("JWT")
-                .description("Paste your Access Token here directly.");
+                .description("Paste your Access Token here directly.")
+        );
 
-        components.getSecuritySchemes().put("BearerAuth", bearerScheme);
-
-        // 2. Configure OAuth2 Scheme (OIDC)
+        // 2. Update OIDC Token URL (Preserving Scopes from YAML)
         SecurityScheme oauth2 = components.getSecuritySchemes().get("oauth2");
-        if (oauth2 == null) {
-            oauth2 = OASFactory.createObject(SecurityScheme.class).type(Type.OAUTH2);
-            components.getSecuritySchemes().put("oauth2", oauth2);
-        } else if (oauth2.getType() != null && oauth2.getType() != Type.OAUTH2) {
-            return;
+
+        // Only proceed if YAML defined 'oauth2' and we have a dynamic URL to inject
+        if (oauth2 != null && tokenUrl.isPresent() && !tokenUrl.get().isBlank()) {
+             // Ensure we are working with OAuth2 type
+            if (oauth2.getType() == Type.OAUTH2) {
+                OAuthFlows flows = oauth2.getFlows();
+                if (flows == null) {
+                    flows = OASFactory.createObject(OAuthFlows.class);
+                    oauth2.setFlows(flows);
+                }
+
+                OAuthFlow cc = flows.getClientCredentials();
+                if (cc == null) {
+                    cc = OASFactory.createObject(OAuthFlow.class);
+                    flows.setClientCredentials(cc);
+                }
+
+                cc.setTokenUrl(tokenUrl.get());
+            }
         }
 
-        if (tokenUrl.isPresent() && !tokenUrl.get().isBlank()) {
-            OAuthFlow clientCreds = OASFactory.createObject(OAuthFlow.class);
-            clientCreds.setTokenUrl(tokenUrl.get());
-
-            // Scopes is an Interface in MP OpenAPI 3.1
-            Scopes scopes = OASFactory.createObject(Scopes.class);
-            scopes.addScope("policies:read", "Read policies and validate");
-            scopes.addScope("policies:write", "Create, update and delete policies");
-
-            clientCreds.setScopes(scopes);
-
-            OAuthFlows flows = OASFactory.createObject(OAuthFlows.class);
-            flows.setClientCredentials(clientCreds);
-
-            oauth2.setFlows(flows);
-        }
-
-        // 3. Make "Paste Token" Available Globally
-        SecurityRequirement req = OASFactory.createObject(SecurityRequirement.class)
-                .addScheme("BearerAuth");
-
-        openAPI.addSecurityRequirement(req);
+        // 3. Apply "Paste Token" Globally
+        // This ensures the BearerAuth option actually works on all endpoints
+        openAPI.addSecurityRequirement(
+            OASFactory.createObject(SecurityRequirement.class).addScheme("BearerAuth")
+        );
     }
 }
