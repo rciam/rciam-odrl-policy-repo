@@ -19,8 +19,12 @@ public class PolicyService {
     @Inject PolicyRepository repository;
     @Inject OdrValidator validator;
 
-    public List<PolicyEntity> list(String status, String type, String target, String assigner, String assignee, String q, int page, int size) {
-        return repository.search(status, type, target, assigner, assignee, q, page, size);
+    public List<PolicyEntity> list(String status, String type, String target, String assigner, String assignee, String q, int offset, int limit) {
+        return repository.search(status, type, target, assigner, assignee, q, offset, limit);
+    }
+
+    public long count(String status, String type, String target, String assigner, String assignee, String q) {
+        return repository.count(status, type, target, assigner, assignee, q);
     }
 
     @Transactional
@@ -46,8 +50,27 @@ public class PolicyService {
     @Transactional
     public PolicyEntity patch(UUID id, JsonNode patch) {
         PolicyEntity entity = findById(id);
-        if (patch.has("name")) entity.setName(patch.get("name").asText());
-        if (patch.has("status")) entity.setStatus(PolicyEntity.PolicyStatus.valueOf(patch.get("status").asText()));
+
+        if (patch.has("name")) {
+            entity.setName(patch.get("name").isNull() ? null : patch.get("name").asText());
+        }
+        if (patch.has("description")) {
+            entity.setDescription(patch.get("description").isNull() ? null : patch.get("description").asText());
+        }
+        if (patch.has("version")) {
+            entity.setVersion(patch.get("version").isNull() ? null : patch.get("version").asText());
+        }
+        if (patch.has("status")) {
+            entity.setStatus(patch.get("status").isNull() ? null :
+                            PolicyEntity.PolicyStatus.valueOf(patch.get("status").asText()));
+        }
+        if (patch.has("policyType")) {
+            entity.setPolicyType(patch.get("policyType").isNull() ? null :
+                                PolicyEntity.PolicyType.valueOf(patch.get("policyType").asText()));
+        }
+        if (patch.has("odrlPolicy")) {
+            entity.setOdrlPolicy(patch.get("odrlPolicy").isNull() ? null : patch.get("odrlPolicy"));
+        }
         return entity;
     }
 
@@ -58,7 +81,8 @@ public class PolicyService {
     }
 
     public ValidationResult validate(UUID id, PolicyInput candidate) {
-        JsonNode policyToValidate = (candidate != null) ? candidate.odrlPolicy() : findById(id).getOdrlPolicy();
+        JsonNode policyToValidate = (candidate != null) ?
+                candidate.odrlPolicy() : findById(id).getOdrlPolicy();
         return validator.validate(policyToValidate);
     }
 

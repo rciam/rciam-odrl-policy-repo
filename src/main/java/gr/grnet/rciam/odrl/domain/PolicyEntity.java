@@ -9,7 +9,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -59,6 +58,9 @@ public class PolicyEntity extends PanacheEntityBase {
     @UpdateTimestamp
     @Column(name = "updated_at")
     public Instant updatedAt;
+
+    @Column(name = "updated_by")
+    public String updatedBy;
 
     public enum PolicyType {
         set, offer, agreement, request, unknown

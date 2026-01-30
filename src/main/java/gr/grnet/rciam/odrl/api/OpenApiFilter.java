@@ -26,7 +26,6 @@ public class OpenApiFilter implements OASFilter {
     public void filterOpenAPI(OpenAPI openAPI) {
         Components components = openAPI.getComponents();
         if (components == null) {
-            // MUST use OASFactory for Interfaces
             components = OASFactory.createObject(Components.class);
             openAPI.setComponents(components);
         }
@@ -57,7 +56,7 @@ public class OpenApiFilter implements OASFilter {
             OAuthFlow clientCreds = OASFactory.createObject(OAuthFlow.class);
             clientCreds.setTokenUrl(tokenUrl.get());
 
-            // Create Scopes using OASFactory
+            // Scopes is an Interface in MP OpenAPI 3.1
             Scopes scopes = OASFactory.createObject(Scopes.class);
             scopes.addScope("policies:read", "Read policies and validate");
             scopes.addScope("policies:write", "Create, update and delete policies");

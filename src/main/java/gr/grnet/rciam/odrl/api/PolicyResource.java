@@ -23,6 +23,7 @@ public class PolicyResource {
     @Inject PolicyService service;
 
     @GET
+    @RolesAllowed("policies:read")
     public Response list(
             @QueryParam("status") String status,
             @QueryParam("policyType") String policyType,
@@ -32,32 +33,67 @@ public class PolicyResource {
             @QueryParam("q") String q,
             @QueryParam("limit") @DefaultValue("20") int limit,
             @QueryParam("offset") @DefaultValue("0") int offset) {
-        
-        int pageIndex = offset / limit;
-        var items = service.list(status, policyType, target, assigner, assignee, q, pageIndex, limit);
-        return Response.ok(Map.of("items", items, "limit", limit, "offset", offset)).build();
+
+        var items = service.list(status, policyType, target, assigner, assignee, q, offset, limit);
+        long total = service.count(status, policyType, target, assigner, assignee, q);
+
+        return Response.ok(Map.of(
+            "items", items,
+            "total", total,
+            "limit", limit,
+            "offset", offset
+        )).build();
     }
 
     @POST
+    @RolesAllowed("policies:write")
     public Response create(@Valid PolicyInput input) {
         PolicyEntity created = service.create(input);
-        return Response.created(URI.create("/policies/" + created.getId())).entity(created).build();
+
+        URI location = uriInfo.getAbsolutePathBuilder()
+                              .path(created.getId().toString())
+                              .build();
+
+        return Response.created(location)
+                .entity(created)
+                .build();
+                .entity(created)
+                .build();
     }
 
     @GET
     @Path("/{policyId}")
+    @RolesAllowed("policies:read")
     public Response get(@PathParam("policyId") UUID policyId) {
         return Response.ok(service.findById(policyId)).build();
     }
 
     @PUT
     @Path("/{policyId}")
+    @RolesAllowed("policies:write")
     public Response update(@PathParam("policyId") UUID policyId, @Valid PolicyInput input) {
         return Response.ok(service.update(policyId, input)).build();
     }
 
+    @PATCH
+    @Path("/{policyId}")
+    @RolesAllowed("policies:write")
+    @Consumes("application/merge-patch+json")
+    public Response patch(@PathParam("policyId") UUID policyId, JsonNode patch) {
+        return Response.ok(service.patch(policyId, patch)).build();
+    }
+
+    @DELETE
+    @Path("/{policyId}")
+    @RolesAllowed("policies:write")
+    public Response delete(@PathParam("policyId") UUID policyId) {
+        service.delete(policyId);
+        return Response.noContent().build();
+    }
+
     @POST
     @Path("/{policyId}/validate")
+    @RolesAllowed("policies:read")
     public Response validate(@PathParam("policyId") UUID policyId, PolicyInput input) {
         return Response.ok(service.validate(policyId, input)).build();
     }
