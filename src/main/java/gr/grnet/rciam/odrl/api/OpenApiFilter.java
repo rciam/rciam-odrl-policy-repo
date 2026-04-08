@@ -25,7 +25,9 @@ public class OpenApiFilter implements OASFilter {
 
     @Override
     public void filterOpenAPI(OpenAPI openAPI) {
-        if (openAPI == null) return;
+        if (openAPI == null) {
+            return;
+        }
 
         Components components = openAPI.getComponents();
         if (components == null) {
@@ -33,14 +35,14 @@ public class OpenApiFilter implements OASFilter {
             openAPI.setComponents(components);
         }
 
-        Map<String, SecurityScheme> schemes = components.getSecuritySchemes();
-        if (schemes == null) {
-            schemes = new LinkedHashMap<>();
-            components.setSecuritySchemes(schemes);
+        // --- FIX: Create a MUTABLE copy of the schemes map ---
+        Map<String, SecurityScheme> mutableSchemes = new LinkedHashMap<>();
+        if (components.getSecuritySchemes() != null) {
+            mutableSchemes.putAll(components.getSecuritySchemes());
         }
 
         // 1. Patch the 'oauth2' scheme from openapi.yaml with the real token URL
-        SecurityScheme oauth2 = schemes.get("oauth2");
+        SecurityScheme oauth2 = mutableSchemes.get("oauth2");
         if (oauth2 != null
                 && oauth2.getFlows() != null
                 && oauth2.getFlows().getClientCredentials() != null
@@ -50,23 +52,29 @@ public class OpenApiFilter implements OASFilter {
         }
 
         // 2. Add 'BearerAuth' as a manual paste alternative
-        schemes.putIfAbsent("BearerAuth",
+        mutableSchemes.putIfAbsent("BearerAuth",
             OASFactory.createObject(SecurityScheme.class)
                 .type(SecurityScheme.Type.HTTP)
                 .scheme("bearer")
                 .bearerFormat("JWT")
-                .description("Manual: Paste an access token here"));
+                .description("Manual: Paste access token with required policies:* scope here"));
+
+        // Write the mutable map back to the components
+        components.setSecuritySchemes(mutableSchemes);
+
+        // --- FIX: Create a MUTABLE copy of the security requirements list ---
+        List<SecurityRequirement> mutableSecurity = new ArrayList<>();
+        if (openAPI.getSecurity() != null) {
+            mutableSecurity.addAll(openAPI.getSecurity());
+        }
 
         // 3. Register 'BearerAuth' as a top-level security requirement
-        List<SecurityRequirement> security = openAPI.getSecurity();
-        if (security == null) {
-            security = new ArrayList<>();
-            openAPI.setSecurity(security);
-        }
-
-        if (security.stream().noneMatch(req -> req.hasScheme("BearerAuth"))) {
-            security.add(OASFactory.createObject(SecurityRequirement.class)
+        if (mutableSecurity.stream().noneMatch(req -> req.hasScheme("BearerAuth"))) {
+            mutableSecurity.add(OASFactory.createObject(SecurityRequirement.class)
                 .addScheme("BearerAuth"));
         }
+
+        // Write the mutable list back to the openAPI object
+        openAPI.setSecurity(mutableSecurity);
     }
 }
