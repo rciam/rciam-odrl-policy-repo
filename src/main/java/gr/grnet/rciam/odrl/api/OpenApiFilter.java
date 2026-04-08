@@ -76,5 +76,8 @@ public class OpenApiFilter implements OASFilter {
 
         // Write the mutable list back to the openAPI object
         openAPI.setSecurity(mutableSecurity);
+
+        // 4. Clear hardcoded servers from openapi.yaml so Swagger uses the current host
+        openAPI.setServers(null);
     }
 }
